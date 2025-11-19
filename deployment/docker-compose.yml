@@ -1,0 +1,110 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:6
+    container_name: menu-parser-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - menu-parser-network
+    healthcheck:
+      test: ["CMD", "mongosh", "--eval", "db.adminCommand('ping')"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      MONGO_INITDB_DATABASE: menu_parser
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: menu-parser-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    volumes:
+      - rabbitmq_data:/var/lib/rabbitmq
+    networks:
+      - menu-parser-network
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+
+  api:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.api
+    container_name: menu-parser-api
+    restart: unless-stopped
+    ports:
+      - "8080:8080"
+    volumes:
+      - ../credentials:/app/credentials:ro
+      - ../.env:/app/.env:ro
+    networks:
+      - menu-parser-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8080/api/v1/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: menu_parser
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_MENU_PARSING_QUEUE: menu-parsing
+      RABBITMQ_PRODUCT_STATUS_QUEUE: product-status
+      RABBITMQ_DLQ_QUEUE: dlq
+      GOOGLE_SHEETS_CREDENTIALS_PATH: /app/credentials/credentials.json
+      API_PORT: 8080
+      API_HOST: 0.0.0.0
+
+  worker:
+    build:
+      context: ..
+      dockerfile: deployment/Dockerfile.worker
+    container_name: menu-parser-worker
+    restart: unless-stopped
+    volumes:
+      - ../credentials:/app/credentials:ro
+      - ../.env:/app/.env:ro
+    networks:
+      - menu-parser-network
+    depends_on:
+      mongodb:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+    environment:
+      MONGODB_URI: mongodb://mongodb:27017
+      MONGODB_DATABASE: menu_parser
+      RABBITMQ_URI: amqp://guest:guest@rabbitmq:5672/
+      RABBITMQ_MENU_PARSING_QUEUE: menu-parsing
+      RABBITMQ_PRODUCT_STATUS_QUEUE: product-status
+      RABBITMQ_DLQ_QUEUE: dlq
+      GOOGLE_SHEETS_CREDENTIALS_PATH: /app/credentials/credentials.json
+
+networks:
+  menu-parser-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
+    driver: local
+  rabbitmq_data:
+    driver: local
+

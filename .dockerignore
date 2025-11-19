@@ -1,0 +1,16 @@
+*.md
+.git
+.gitignore
+.env
+*.pdf
+*.xlsx
+*.csv
+credentials/
+.vscode
+.idea
+*.swp
+*.swo
+*~
+
+
+
