@@ -4,8 +4,13 @@
 *.dll
 *.so
 *.dylib
-api
-worker
+
+# Binary files in root (compiled executables)
+/api
+/worker
+
+# Build output directory
+bin/
 
 # Test binary
 *.test
