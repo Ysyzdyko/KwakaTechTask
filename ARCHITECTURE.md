@@ -8,18 +8,29 @@
 menu-parser/
 ├── cmd/                    # Точки входа приложения
 │   ├── api/               # HTTP API сервер
-│   └── worker/             # Queue worker
+│   └── worker/            # Queue worker
 ├── internal/               # Внутренние пакеты (не экспортируются)
 │   ├── domain/            # Доменный слой (бизнес-логика)
-│   │   ├── entity/        # Сущности домена
+│   │   ├── entity/        # Сущности домена (Menu, ParsingTask, ProductAudit)
 │   │   ├── repository/    # Интерфейсы репозиториев
-│   │   └── service/       # Интерфейсы внешних сервисов
+│   │   └── service/       # Интерфейсы внешних сервисов (Queue, SheetsParser)
 │   ├── usecase/           # Слой бизнес-логики (Use Cases)
+│   │   ├── menu_usecase.go
+│   │   ├── product_usecase.go
+│   │   └── health_usecase.go
 │   ├── repository/        # Реализации репозиториев
-│   └── delivery/          # Слой доставки (внешние интерфейсы)
+│   │   ├── menu_repository.go
+│   │   ├── task_repository.go
+│   │   └── audit_repository.go
+│   └── transport/         # Слой доставки (внешние интерфейсы)
 │       ├── http/          # HTTP handlers
+│       │   ├── dto/       # Data Transfer Objects
+│       │   ├── handler/   # HTTP handlers
+│       │   └── router.go  # Роутинг
 │       └── queue/         # Queue consumers
+│           └── consumer.go
 └── pkg/                    # Переиспользуемые пакеты
+    ├── config/            # Конфигурация приложения
     ├── database/          # MongoDB подключение
     ├── parser/            # Google Sheets парсер
     ├── queue/             # RabbitMQ адаптеры
@@ -67,13 +78,14 @@ menu-parser/
 - Инкапсулирует логику работы с БД
 - Может быть легко заменен на другую реализацию
 
-### 4. Delivery Layer (Слой доставки)
-**Расположение:** `internal/delivery/`
+### 4. Transport Layer (Слой доставки)
+**Расположение:** `internal/transport/`
 
 Содержит:
-- **HTTP Handlers** - обработка HTTP запросов
-- **Queue Consumers** - обработка сообщений из очереди
-- **DTOs** - Data Transfer Objects для API
+- **HTTP Handlers** (`transport/http/handler/`) - обработка HTTP запросов
+- **Queue Consumers** (`transport/queue/`) - обработка сообщений из очереди
+- **DTOs** (`transport/http/dto/`) - Data Transfer Objects для API
+- **Router** (`transport/http/router.go`) - настройка маршрутов
 
 **Принципы:**
 - Зависит от usecase layer
@@ -99,23 +111,35 @@ menu-parser/
 Все зависимости инжектируются через конструкторы в `cmd/api/main.go` и `cmd/worker/main.go`:
 
 ```go
-// 1. Инициализация инфраструктуры
-db := database.NewMongoDB(cfg)
-rabbitmq := queue.NewRabbitMQ(cfg)
+// 1. Загрузка конфигурации
+cfg, err := config.Load()
 
-// 2. Инициализация репозиториев
+// 2. Инициализация инфраструктуры
+db, err := database.NewMongoDB(cfg)
+rabbitmq, err := rabbitmqQueue.NewRabbitMQ(cfg)
+
+// 3. Инициализация репозиториев
 menuRepo := repository.NewMenuRepository(db)
 taskRepo := repository.NewTaskRepository(db)
+auditRepo := repository.NewAuditRepository(db)
 
-// 3. Инициализация сервисов
-parser := parser.NewSheetsParser(cfg)
-queuePublisher := queue.NewQueuePublisher(rabbitmq)
+// 4. Инициализация внешних сервисов
+sheetsParser, err := parser.NewSheetsParser(cfg.GoogleSheetsCredentialsPath)
+queuePublisher := rabbitmqQueue.NewQueuePublisher(rabbitmq)
+queueConsumer, err := rabbitmqQueue.NewQueueConsumer(rabbitmq)
+healthService := health.NewHealthService(db, rabbitmq)
 
-// 4. Инициализация use cases
-menuUseCase := usecase.NewMenuUseCase(menuRepo, taskRepo, parser, queuePublisher)
+// 5. Инициализация use cases
+menuUseCase := usecase.NewMenuUseCase(menuRepo, taskRepo, sheetsParser, queuePublisher)
+productUseCase := usecase.NewProductUseCase(menuRepo, auditRepo, queuePublisher)
+healthUseCase := usecase.NewHealthUseCase(healthService)
 
-// 5. Инициализация handlers
-router := http.SetupRouter(menuUseCase, productUseCase, healthUseCase)
+// 6. Инициализация handlers (для API)
+// Импорт: httpDelivery "menu-parser/internal/transport/http"
+router := httpDelivery.SetupRouter(menuUseCase, productUseCase, healthUseCase)
+
+// 7. Инициализация consumer (для Worker)
+consumer := queue.NewConsumer(menuUseCase, productUseCase, taskRepo, queueConsumer)
 ```
 
 ## Преимущества архитектуры
@@ -131,7 +155,7 @@ router := http.SetupRouter(menuUseCase, productUseCase, healthUseCase)
 ### HTTP Request Flow:
 ```
 HTTP Request 
-  → HTTP Handler (delivery/http)
+  → HTTP Handler (transport/http/handler)
   → Use Case (usecase)
   → Repository (repository)
   → Database (pkg/database)
@@ -140,11 +164,12 @@ HTTP Request
 
 ### Queue Message Flow:
 ```
-Queue Message
-  → Queue Consumer (delivery/queue)
+Queue Message (RabbitMQ)
+  → Queue Consumer (transport/queue/consumer)
   → Use Case (usecase)
   → Repository (repository)
   → Database (pkg/database)
+  → Queue Publisher (pkg/queue) [для событий]
 ```
 
 ## Следование SOLID принципам

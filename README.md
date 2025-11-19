@@ -25,20 +25,30 @@
 │   └── worker/            # Queue worker
 ├── internal/               # Внутренние пакеты
 │   ├── domain/            # Доменный слой (entities, интерфейсы)
+│   │   ├── entity/        # Бизнес-сущности
+│   │   ├── repository/    # Интерфейсы репозиториев
+│   │   └── service/       # Интерфейсы внешних сервисов
 │   ├── usecase/           # Бизнес-логика (Use Cases)
 │   ├── repository/        # Реализации репозиториев
-│   └── delivery/          # Слой доставки (HTTP, Queue)
+│   └── transport/         # Слой доставки (HTTP, Queue)
 │       ├── http/          # HTTP handlers и роутинг
+│       │   ├── dto/       # Data Transfer Objects
+│       │   └── handler/   # HTTP handlers
 │       └── queue/         # Queue consumers
 ├── pkg/                    # Переиспользуемые пакеты
+│   ├── config/            # Конфигурация приложения
 │   ├── database/          # MongoDB подключение
 │   ├── parser/            # Парсер Google Sheets
 │   ├── queue/             # RabbitMQ адаптеры
 │   └── health/            # Health check сервис
-├── config/                # Конфигурация
-├── docker-compose.yml
-├── Dockerfile.api
-└── Dockerfile.worker
+├── deployment/             # Docker конфигурация
+│   ├── docker-compose.yml
+│   ├── Dockerfile.api
+│   └── Dockerfile.worker
+├── credentials/            # Google Sheets credentials (не в git)
+├── Makefile               # Команды для сборки и запуска
+├── go.mod
+└── go.sum
 ```
 
 ## Быстрый старт
@@ -58,11 +68,18 @@ mkdir -p credentials
 
 # Поместите ваш Google Sheets credentials в credentials/credentials.json
 
-# Запустите все сервисы
+# Запустите все сервисы (из корня проекта)
+cd deployment
 docker-compose up -d
 
+# Или используйте Makefile команды из корня проекта
+make docker-up
+
 # Проверьте логи
-docker-compose logs -f
+docker-compose -f deployment/docker-compose.yml logs -f
+
+# Или через Makefile
+make docker-logs
 ```
 
 ### 3. Проверка работы
@@ -150,9 +167,42 @@ curl http://localhost:8080/api/v1/menu/{menu_id}
 ### dlq (Dead Letter Queue)
 Очередь для сообщений, которые не удалось обработать после всех попыток.
 
+## Makefile команды
+
+Проект включает Makefile для упрощения работы:
+
+```bash
+# Сборка
+make build              # Собрать API и Worker
+make build-api          # Собрать только API
+make build-worker       # Собрать только Worker
+
+# Запуск локально
+make run-api            # Запустить API
+make run-worker         # Запустить Worker
+
+# Docker команды (требуют запуска из директории deployment/)
+make docker-build       # Собрать Docker образы
+make docker-up          # Запустить все сервисы
+make docker-down        # Остановить все сервисы
+make docker-logs        # Показать логи
+make docker-restart     # Перезапустить сервисы
+
+# Или напрямую через docker-compose из директории deployment/
+cd deployment
+docker-compose up -d
+docker-compose logs -f
+
+# Утилиты
+make setup              # Создать директорию credentials
+make deps               # Установить зависимости
+make test               # Запустить тесты
+make clean              # Очистить артефакты сборки
+```
+
 ## Переменные окружения
 
-Создайте файл `.env` или используйте переменные в `docker-compose.yml`:
+Создайте файл `.env` в корне проекта или используйте переменные в `deployment/docker-compose.yml`:
 
 ```env
 MONGODB_URI=mongodb://mongodb:27017
@@ -173,15 +223,23 @@ API_HOST=0.0.0.0
 ```bash
 # Установите зависимости
 go mod download
+# Или используйте Makefile
+make deps
 
 # Запустите MongoDB и RabbitMQ через Docker
+cd deployment
 docker-compose up -d mongodb rabbitmq
+cd ..
 
 # Запустите API
 go run cmd/api/main.go
+# Или через Makefile
+make run-api
 
 # В другом терминале запустите Worker
 go run cmd/worker/main.go
+# Или через Makefile
+make run-worker
 ```
 
 ## Структура данных MongoDB
@@ -244,4 +302,11 @@ go run cmd/worker/main.go
 
 - RabbitMQ Management UI: http://localhost:15672 (guest/guest)
 - MongoDB: mongodb://localhost:27017
+- API Health Check: http://localhost:8080/api/v1/health
+
+## Дополнительная информация
+
+- Docker конфигурация находится в директории `deployment/`
+- Для запуска через docker-compose используйте: `cd deployment && docker-compose up -d`
+- Или используйте Makefile команды из корня проекта
 
