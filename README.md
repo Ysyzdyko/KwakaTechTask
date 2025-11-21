@@ -142,8 +142,12 @@ curl http://localhost:8080/api/v1/menu/{menu_id}
 ### GET `/api/v1/menu/{menu_id}`
 Получает меню по ID.
 
-### PATCH `/api/v1/products/{product_id}/status`
+### PATCH `/api/v1/restaurants/{restaurant_id}/products/{product_id}/status`
 Обновляет статус продукта.
+
+**Path params:**
+`restaurant_id` — идентификатор ресторана/меню, в котором хранится продукт  
+`product_id` — внешний ID продукта
 
 **Request:**
 ```json

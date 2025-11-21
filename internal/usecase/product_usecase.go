@@ -31,22 +31,23 @@ func NewProductUseCase(
 }
 
 // UpdateProductStatus queues a product status update
-func (uc *ProductUseCase) UpdateProductStatus(ctx context.Context, productID, newStatus, reason, userID string) error {
+func (uc *ProductUseCase) UpdateProductStatus(ctx context.Context, restaurantID, productID, newStatus, reason, userID string) error {
 	// Get current status
-	oldStatus, err := uc.menuRepo.GetProductStatus(ctx, productID)
+	oldStatus, err := uc.menuRepo.GetProductStatus(ctx, restaurantID, productID)
 	if err != nil {
 		return fmt.Errorf("failed to get product status: %w", err)
 	}
 
 	// Publish event to queue
 	event := &entity.ProductStatusChangeEvent{
-		EventType: entity.EventTypeProductStatusChanged,
-		ProductID:  productID,
-		OldStatus:  oldStatus,
-		NewStatus:  newStatus,
-		Reason:     reason,
-		Timestamp:  time.Now(),
-		UserID:     userID,
+		EventType:    entity.EventTypeProductStatusChanged,
+		RestaurantID: restaurantID,
+		ProductID:    productID,
+		OldStatus:    oldStatus,
+		NewStatus:    newStatus,
+		Reason:       reason,
+		Timestamp:    time.Now(),
+		UserID:       userID,
 	}
 
 	if err := uc.queuePub.PublishProductStatusEvent(event); err != nil {
@@ -59,7 +60,7 @@ func (uc *ProductUseCase) UpdateProductStatus(ctx context.Context, productID, ne
 // ProcessProductStatusEvent processes a product status change event
 func (uc *ProductUseCase) ProcessProductStatusEvent(ctx context.Context, event *entity.ProductStatusChangeEvent) error {
 	// Update product status in DB
-	oldStatus, err := uc.menuRepo.UpdateProductStatus(ctx, event.ProductID, event.NewStatus)
+	oldStatus, err := uc.menuRepo.UpdateProductStatus(ctx, event.RestaurantID, event.ProductID, event.NewStatus)
 	if err != nil {
 		return fmt.Errorf("failed to update product status: %w", err)
 	}
@@ -86,4 +87,3 @@ func (uc *ProductUseCase) ProcessProductStatusEvent(ctx context.Context, event *
 
 	return nil
 }
-

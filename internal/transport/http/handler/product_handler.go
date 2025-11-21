@@ -20,6 +20,7 @@ func NewProductHandler(productUseCase *usecase.ProductUseCase) *ProductHandler {
 }
 
 func (h *ProductHandler) UpdateProductStatus(c *gin.Context) {
+	restaurantID := c.Param("restaurant_id")
 	productID := c.Param("product_id")
 
 	var req dto.ProductStatusUpdateRequest
@@ -33,7 +34,7 @@ func (h *ProductHandler) UpdateProductStatus(c *gin.Context) {
 		userID = "system"
 	}
 
-	err := h.productUseCase.UpdateProductStatus(c.Request.Context(), productID, req.Status, req.Reason, userID)
+	err := h.productUseCase.UpdateProductStatus(c.Request.Context(), restaurantID, productID, req.Status, req.Reason, userID)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": err.Error()})
 		return

@@ -35,13 +35,12 @@ type ProductStatusAudit struct {
 }
 
 type ProductStatusChangeEvent struct {
-	EventType ProductEventType `json:"event_type"`
-	ProductID string           `json:"product_id"`
-	OldStatus string           `json:"old_status"`
-	NewStatus string           `json:"new_status"`
-	Reason    string           `json:"reason"`
-	Timestamp time.Time        `json:"timestamp"`
-	UserID    string           `json:"user_id"`
+	EventType    ProductEventType `json:"event_type"`
+	RestaurantID string           `json:"restaurant_id"`
+	ProductID    string           `json:"product_id"`
+	OldStatus    string           `json:"old_status"`
+	NewStatus    string           `json:"new_status"`
+	Reason       string           `json:"reason"`
+	Timestamp    time.Time        `json:"timestamp"`
+	UserID       string           `json:"user_id"`
 }
-
-

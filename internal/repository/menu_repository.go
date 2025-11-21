@@ -53,9 +53,12 @@ func (r *MenuRepository) GetByID(ctx context.Context, menuID string) (*entity.Me
 	return &menu, nil
 }
 
-func (r *MenuRepository) GetProductStatus(ctx context.Context, productID string) (string, error) {
+func (r *MenuRepository) GetProductStatus(ctx context.Context, restaurantID, productID string) (string, error) {
 	var menu entity.Menu
-	filter := bson.M{"products.ext_id": productID}
+	filter := bson.M{
+		"restaurant_id":   restaurantID,
+		"products.ext_id": productID,
+	}
 
 	err := r.db.Database.Collection("menus").FindOne(ctx, filter).Decode(&menu)
 	if err != nil {
@@ -74,9 +77,12 @@ func (r *MenuRepository) GetProductStatus(ctx context.Context, productID string)
 	return "", fmt.Errorf("product not found in menu")
 }
 
-func (r *MenuRepository) UpdateProductStatus(ctx context.Context, productID, newStatus string) (string, error) {
+func (r *MenuRepository) UpdateProductStatus(ctx context.Context, restaurantID, productID, newStatus string) (string, error) {
 	var menu entity.Menu
-	filter := bson.M{"products.ext_id": productID}
+	filter := bson.M{
+		"restaurant_id":   restaurantID,
+		"products.ext_id": productID,
+	}
 
 	err := r.db.Database.Collection("menus").FindOne(ctx, filter).Decode(&menu)
 	if err != nil {
@@ -114,5 +120,3 @@ func (r *MenuRepository) UpdateProductStatus(ctx context.Context, productID, new
 
 	return oldStatus, nil
 }
-
-

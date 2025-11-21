@@ -23,7 +23,7 @@ func SetupRouter(
 		v1.POST("/parse", menuHandler.ParseMenu)
 		v1.GET("/parse/:task_id", menuHandler.GetTaskStatus)
 		v1.GET("/menu/:menu_id", menuHandler.GetMenu)
-		v1.PATCH("/products/:product_id/status", productHandler.UpdateProductStatus)
+		v1.PATCH("/restaurants/:restaurant_id/products/:product_id/status", productHandler.UpdateProductStatus)
 		v1.GET("/health", healthHandler.HealthCheck)
 	}
 
